@@ -20,11 +20,18 @@
 
 package org.sonar.plugins.groovy;
 
-import org.sonar.api.scan.filesystem.FileQuery;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import groovyjarjarantlr.Token;
 import groovyjarjarantlr.TokenStream;
 import groovyjarjarantlr.TokenStreamException;
+
 import org.codehaus.groovy.antlr.parser.GroovyLexer;
 import org.codehaus.groovy.antlr.parser.GroovyTokenTypes;
 import org.gmetrics.GMetricsRunner;
@@ -45,17 +52,11 @@ import org.sonar.api.measures.FileLinesContextFactory;
 import org.sonar.api.measures.PersistenceMode;
 import org.sonar.api.measures.RangeDistributionBuilder;
 import org.sonar.api.resources.Project;
+import org.sonar.api.resources.Resource;
+import org.sonar.api.scan.filesystem.FileQuery;
 import org.sonar.api.scan.filesystem.ModuleFileSystem;
 import org.sonar.plugins.groovy.foundation.Groovy;
 import org.sonar.plugins.groovy.gmetrics.CustomSourceAnalyzer;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map.Entry;
-import java.util.Set;
 
 public class GroovySensor implements Sensor {
 
@@ -88,12 +89,12 @@ public class GroovySensor implements Sensor {
 
   public void analyse(Project project, SensorContext context) {
     computeBaseMetrics(context);
-    for (File sourceDir : moduleFileSystem.sourceDirs()) {
-      processDirectory(context, sourceDir);
+    for (File sourceDir :  project.getFileSystem().getSourceDirs()) {
+      processDirectory(context, project, sourceDir);
     }
   }
 
-  private void processDirectory(SensorContext context, File sourceDir) {
+  private void processDirectory(SensorContext context, Project project, File sourceDir) {
     GMetricsRunner runner = new GMetricsRunner();
     runner.setMetricSet(new DefaultMetricSet());
     CustomSourceAnalyzer analyzer = new CustomSourceAnalyzer(sourceDir.getAbsolutePath());
@@ -103,12 +104,13 @@ public class GroovySensor implements Sensor {
     for (Entry<File, Collection<ClassResultsNode>> entry : analyzer.getResultsByFile().asMap().entrySet()) {
       File file = entry.getKey();
       Collection<ClassResultsNode> results = entry.getValue();
-      org.sonar.api.resources.File sonarFile = org.sonar.api.resources.File.fromIOFile(file, moduleFileSystem.sourceDirs());
+      Resource sonarFile = org.sonar.api.resources.File.fromIOFile(file, project.getFileSystem().getSourceDirs());
+      //org.sonar.api.resources.File sonarFile = org.sonar.api.resources.File.fromIOFile(file, moduleFileSystem.sourceDirs());
       processFile(context, sonarFile, results);
     }
   }
 
-  private void processFile(SensorContext context, org.sonar.api.resources.File sonarFile, Collection<ClassResultsNode> results) {
+  private void processFile(SensorContext context, Resource sonarFile, Collection<ClassResultsNode> results) {
     double classes = 0;
     double methods = 0;
     double complexity = 0;

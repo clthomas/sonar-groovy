@@ -20,12 +20,14 @@
 
 package org.sonar.plugins.groovy;
 
+import java.util.List;
+
 import com.google.common.collect.ImmutableList;
+
 import org.sonar.api.Properties;
 import org.sonar.api.Property;
 import org.sonar.api.PropertyType;
 import org.sonar.api.SonarPlugin;
-import org.sonar.plugins.groovy.cobertura.CoberturaSensor;
 import org.sonar.plugins.groovy.codenarc.CodeNarcRuleRepository;
 import org.sonar.plugins.groovy.codenarc.CodeNarcSensor;
 import org.sonar.plugins.groovy.codenarc.SonarWayProfile;
@@ -33,17 +35,33 @@ import org.sonar.plugins.groovy.foundation.Groovy;
 import org.sonar.plugins.groovy.foundation.GroovyColorizerFormat;
 import org.sonar.plugins.groovy.foundation.GroovyCpdMapping;
 import org.sonar.plugins.groovy.foundation.GroovySourceImporter;
-
-import java.util.List;
+import org.sonar.plugins.groovy.jacoco.JaCoCoAgentDownloader;
+import org.sonar.plugins.groovy.jacoco.JaCoCoItSensor;
+import org.sonar.plugins.groovy.jacoco.JaCoCoMavenPluginHandler;
+import org.sonar.plugins.groovy.jacoco.JaCoCoOverallSensor;
+import org.sonar.plugins.groovy.jacoco.JaCoCoSensor;
+import org.sonar.plugins.groovy.jacoco.JacocoAntInitializer;
+import org.sonar.plugins.groovy.jacoco.JacocoConfiguration;
+import org.sonar.plugins.groovy.jacoco.JacocoMavenInitializer;
 
 @Properties({
   @Property(
     key = GroovyPlugin.CODENARC_REPORT_PATH,
-    name = "CodeNarc Report",
+    name = "Codenarc Report file",
+//    name = "CodeNarc Report",
     description = "Path to the CodeNarc XML report. Path may be absolute or relative to the project base directory.",
     module = true,
     project = true,
-    global = true
+    global = false
+  ),
+  @Property(
+    key = GroovyPlugin.JACOCO_REPORT_PATH,
+    name = "Jacoco Report file",
+    description = "Path (absolute or relative) to Jacoco EXEC report in case generation is not handle by the plugin.",
+    module = true,
+    project = true,
+    global = true,
+	defaultValue = "target/jacoco.exec"
   ),
   @Property(
     key = GroovyPlugin.COBERTURA_REPORT_PATH,
@@ -65,6 +83,7 @@ import java.util.List;
 })
 public class GroovyPlugin extends SonarPlugin {
 
+  public static final String JACOCO_REPORT_PATH = "sonar.groovy.jacoco.reportPath";
   public static final String CODENARC_REPORT_PATH = "sonar.groovy.codenarc.reportPath";
   public static final String COBERTURA_REPORT_PATH = "sonar.groovy.cobertura.reportPath";
   public static final String IGNORE_HEADER_COMMENTS = "sonar.groovy.ignoreHeaderComments";
@@ -84,10 +103,21 @@ public class GroovyPlugin extends SonarPlugin {
       GroovyCpdMapping.class,
       // Main sensor
       GroovySensor.class,
+	  //CoberturaMavenPluginHandler.class,
+
+	  // jacoco
+	  JacocoConfiguration.class,
+	  JaCoCoAgentDownloader.class,
+	  JacocoAntInitializer.class,
+	  JacocoMavenInitializer.class,
+	  JaCoCoMavenPluginHandler.class,
+	  JaCoCoSensor.class,
+	  JaCoCoItSensor.class,
+	  JaCoCoOverallSensor.class
 
       // Cobertura
-      CoberturaSensor.class
-      );
+	  //CoberturaSensor.class
+	);
   }
 
 }

@@ -17,19 +17,6 @@
  * License along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
  */
+@javax.annotation.ParametersAreNonnullByDefault
+package org.sonar.plugins.groovy.jacoco;
 
-package org.sonar.plugins.groovy;
-
-import org.junit.Ignore;
-
-import static org.fest.assertions.Assertions.assertThat;
-
-public class GroovyPluginTest {
-
-  @Ignore
-  public void testExtensions() {
-    assertThat(new GroovyPlugin().getExtensions()).hasSize(22);
-    assertThat(new GroovyPlugin().getExtensions()).hasSize(11);
-  }
-
-}

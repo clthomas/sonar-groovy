@@ -17,19 +17,20 @@
  * License along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02
  */
+package org.sonar.plugins.groovy.jacoco;
 
-package org.sonar.plugins.groovy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.junit.Ignore;
+public final class JaCoCoUtils {
 
-import static org.fest.assertions.Assertions.assertThat;
-
-public class GroovyPluginTest {
-
-  @Ignore
-  public void testExtensions() {
-    assertThat(new GroovyPlugin().getExtensions()).hasSize(22);
-    assertThat(new GroovyPlugin().getExtensions()).hasSize(11);
+  /**
+   * Utility class constructor.
+   */
+  private JaCoCoUtils() {
   }
+
+  public static final String PLUGIN_KEY = "jacoco";
+  public static final Logger LOG = LoggerFactory.getLogger(JaCoCoUtils.class.getName());
 
 }

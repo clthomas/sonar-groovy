@@ -19,9 +19,14 @@
  */
 package org.sonar.plugins.groovy.cobertura;
 
-import org.sonar.api.resources.Directory;
+import java.io.File;
+import java.text.ParseException;
+import java.util.Map;
+
+import javax.xml.stream.XMLStreamException;
 
 import com.google.common.collect.Maps;
+
 import org.apache.commons.lang.StringUtils;
 import org.codehaus.staxmate.in.SMHierarchicCursor;
 import org.codehaus.staxmate.in.SMInputCursor;
@@ -31,12 +36,6 @@ import org.sonar.api.measures.Measure;
 import org.sonar.api.resources.Resource;
 import org.sonar.api.utils.StaxParser;
 import org.sonar.api.utils.XmlParserException;
-
-import javax.xml.stream.XMLStreamException;
-
-import java.io.File;
-import java.text.ParseException;
-import java.util.Map;
 
 import static java.util.Locale.ENGLISH;
 import static org.sonar.api.utils.ParsingUtils.parseNumber;
@@ -82,7 +81,7 @@ public class CoberturaReportParser {
     }
   }
 
-  private boolean fileExists(Resource<Directory> file) {
+  private boolean fileExists(Resource file) {
     return context.getResource(file) != null;
   }
 
