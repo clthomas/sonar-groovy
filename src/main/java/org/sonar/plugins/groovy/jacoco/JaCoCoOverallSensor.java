@@ -37,12 +37,12 @@ import org.jacoco.core.data.ExecutionDataWriter;
 import org.jacoco.core.data.SessionInfoStore;
 import org.sonar.api.batch.Sensor;
 import org.sonar.api.batch.SensorContext;
+import org.sonar.api.batch.fs.FileSystem;
 import org.sonar.api.component.ResourcePerspectives;
 import org.sonar.api.measures.CoreMetrics;
 import org.sonar.api.measures.Measure;
 import org.sonar.api.resources.Project;
 import org.sonar.api.resources.Resource;
-import org.sonar.api.scan.filesystem.ModuleFileSystem;
 import org.sonar.api.scan.filesystem.PathResolver;
 import org.sonar.api.utils.SonarException;
 
@@ -52,10 +52,10 @@ public class JaCoCoOverallSensor implements Sensor {
 
   private final JacocoConfiguration configuration;
   private final ResourcePerspectives perspectives;
-  private final ModuleFileSystem fileSystem;
+  private final FileSystem fileSystem;
   private final PathResolver pathResolver;
 
-  public JaCoCoOverallSensor(JacocoConfiguration configuration, ResourcePerspectives perspectives, ModuleFileSystem fileSystem, PathResolver pathResolver) {
+  public JaCoCoOverallSensor(JacocoConfiguration configuration, ResourcePerspectives perspectives, FileSystem fileSystem, PathResolver pathResolver) {
     this.configuration = configuration;
     this.perspectives = perspectives;
     this.fileSystem = fileSystem;
@@ -73,7 +73,7 @@ public class JaCoCoOverallSensor implements Sensor {
       return;
     }
 
-    File reportOverall = new File(fileSystem.workingDir(), JACOCO_OVERALL);
+    File reportOverall = new File(fileSystem.workDir(), JACOCO_OVERALL);
     reportOverall.getParentFile().mkdirs();
 
     mergeReports(reportOverall, reportUTs, reportITs);

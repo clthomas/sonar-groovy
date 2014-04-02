@@ -27,6 +27,7 @@ import org.sonar.api.batch.maven.MavenPluginHandler;
 import org.sonar.api.batch.maven.MavenSurefireUtils;
 import org.sonar.api.config.Settings;
 import org.sonar.api.resources.Project;
+import org.sonar.api.utils.SonarException;
 
 public class JaCoCoMavenPluginHandler implements MavenPluginHandler {
 
@@ -71,19 +72,20 @@ public class JaCoCoMavenPluginHandler implements MavenPluginHandler {
 
   public void configure(Project project, MavenPlugin plugin) {
     // See SONARPLUGINS-600
-	System.out.println("Project " + project);
+
     String destfilePath = configuration.getReportPath();
     File destfile = project.getFileSystem().resolvePath(destfilePath);
 
 
-	  if (destfile.exists() && destfile.isFile()) {
-      //FIXME make this delete only if not set to reuseReport
-      //JaCoCoUtils.LOG.info("Deleting {}", destfile);
+	if (destfile.exists()
+		&& destfile.isFile()
+		&& !settings.getString("sonar.dynamicAnalysis").equals("reuseReports"))	  {
 
-      /*if (!destfile.delete()) {
-        throw new SonarException("Unable to delete " + destfile);
-      }*/
-    }
+		JaCoCoUtils.LOG.info("Deleting {}", destfile);
+		if (!destfile.delete()) {
+			throw new SonarException("Unable to delete " + destfile);
+		}
+	}
 
     String argument = configuration.getJvmArgument();
 

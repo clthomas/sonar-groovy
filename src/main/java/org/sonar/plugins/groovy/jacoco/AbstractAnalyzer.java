@@ -29,7 +29,6 @@ import java.util.Map;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 
-import org.apache.commons.lang.StringUtils;
 import org.jacoco.core.analysis.Analyzer;
 import org.jacoco.core.analysis.CoverageBuilder;
 import org.jacoco.core.analysis.ICounter;
@@ -40,13 +39,15 @@ import org.jacoco.core.data.ExecutionDataReader;
 import org.jacoco.core.data.ExecutionDataStore;
 import org.jacoco.core.runtime.WildcardMatcher;
 import org.sonar.api.batch.SensorContext;
+import org.sonar.api.batch.fs.FilePredicate;
+import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.fs.InputFile;
 import org.sonar.api.component.ResourcePerspectives;
 import org.sonar.api.measures.CoverageMeasuresBuilder;
 import org.sonar.api.measures.Measure;
 import org.sonar.api.resources.Project;
 import org.sonar.api.resources.Resource;
 import org.sonar.api.resources.ResourceUtils;
-import org.sonar.api.scan.filesystem.ModuleFileSystem;
 import org.sonar.api.scan.filesystem.PathResolver;
 import org.sonar.api.test.MutableTestCase;
 import org.sonar.api.test.MutableTestPlan;
@@ -58,11 +59,12 @@ import static com.google.common.collect.Lists.newArrayList;
 
 public abstract class AbstractAnalyzer {
 
-  private final ResourcePerspectives perspectives;
-  private final ModuleFileSystem fileSystem;
+	private static final String BINARY_DIR = "target/classes";
+	private final ResourcePerspectives perspectives;
+  private final FileSystem fileSystem;
   private final PathResolver pathResolver;
 
-  public AbstractAnalyzer(ResourcePerspectives perspectives, ModuleFileSystem fileSystem, PathResolver pathResolver) {
+  public AbstractAnalyzer(ResourcePerspectives perspectives, FileSystem fileSystem, PathResolver pathResolver) {
     this.perspectives = perspectives;
     this.fileSystem = fileSystem;
     this.pathResolver = pathResolver;
@@ -74,29 +76,45 @@ public abstract class AbstractAnalyzer {
   }
 
   @VisibleForTesting
-  static Resource getResource(ISourceFileCoverage coverage, SensorContext context) {
-	  String packageName = StringUtils.replaceChars(coverage.getPackageName(), '/', '.');
-	  String fileName = StringUtils.substringBeforeLast(coverage.getName(), ".");
-
-
-	  // TODO: handle this properly
-	  Resource resource = org.sonar.api.resources.File.create("src/main/groovy/" + coverage.getPackageName() + "/" + coverage.getName());
+  static Resource getResource(final ISourceFileCoverage coverage, SensorContext context, final FileSystem fileSystem) {
+	  final InputFile inputFile = getInputFile(coverage, fileSystem);
+	  if (inputFile == null)
+	  {
+		  return null;
+	  }
+	  Resource resource =  org.sonar.api.resources.File.create(inputFile.relativePath());
 	  Resource resourceInContext = context.getResource(resource);
 
-	  //resource = new GroovyFile(coverage.getPackageName() + "/" + coverage.getName());
 	  if (null == resourceInContext) {
-		  // no source found?
 		  resourceInContext = resource;
 	  }
 	  if (ResourceUtils.isUnitTestClass(resourceInContext)) {
-		  // Ignore unit tests
 		  return null;
 	  }
 
 	  return resourceInContext;
   }
 
-  public final void analyse(Project project, SensorContext context) {
+	private static InputFile getInputFile(final ISourceFileCoverage coverage, final FileSystem fileSystem)
+	{
+		InputFile inputFile = null;
+		inputFile = fileSystem.inputFile(new FilePredicate()
+		{
+			public boolean apply(final InputFile inputFile)
+			{
+				String fileName = inputFile.file().getName();
+				if (coverage.getName().equals(fileName))
+				{
+					return true;
+				}
+				return false;
+			}
+		});
+		return inputFile;
+	}
+
+
+	public final void analyse(Project project, SensorContext context) {
     if (!atLeastOneBinaryDirectoryExists()) {
       JaCoCoUtils.LOG.info("Project coverage is set to 0% since there is no directories with classes.");
       return;
@@ -117,18 +135,14 @@ public abstract class AbstractAnalyzer {
   }
 
   private boolean atLeastOneBinaryDirectoryExists() {
-    for (File binaryDir : fileSystem.binaryDirs()) {
-      if (binaryDir.exists()) {
-        return true;
-      }
-    }
-    return false;
+	  return new File(fileSystem.baseDir(), BINARY_DIR).exists();
   }
+
 
   public final void readExecutionData(File jacocoExecutionData, SensorContext context, WildcardMatcher excludes) throws IOException {
     ExecutionDataVisitor executionDataVisitor = new ExecutionDataVisitor();
 
-    if (jacocoExecutionData == null || !jacocoExecutionData.exists() || !jacocoExecutionData.isFile()) {
+    if (!jacocoExecutionData.exists() || !jacocoExecutionData.isFile()) {
       JaCoCoUtils.LOG.info("Project coverage is set to 0% as no JaCoCo execution data has been dumped: {}", jacocoExecutionData);
     } else {
       JaCoCoUtils.LOG.info("Analysing {}", jacocoExecutionData);
@@ -149,7 +163,7 @@ public abstract class AbstractAnalyzer {
     CoverageBuilder coverageBuilder = analyze(executionDataVisitor.getMerged());
     int analyzedResources = 0;
     for (ISourceFileCoverage coverage : coverageBuilder.getSourceFiles()) {
-      Resource resource = getResource(coverage, context);
+      Resource resource = getResource(coverage, context, fileSystem);
       if (resource != null) {
         if (!isExcluded(coverage, excludes)) {
           CoverageMeasuresBuilder builder = analyzeFile(resource, coverage);
@@ -183,7 +197,7 @@ public abstract class AbstractAnalyzer {
     boolean result = false;
     CoverageBuilder coverageBuilder = analyze2(executionDataStore);
     for (ISourceFileCoverage coverage : coverageBuilder.getSourceFiles()) {
-      Resource resource = getResource(coverage, context);
+      Resource resource = getResource(coverage, context, fileSystem);
       if (resource != null && !isExcluded(coverage, excludes)) {
         CoverageMeasuresBuilder builder = analyzeFile(resource, coverage);
         List<Integer> coveredLines = getCoveredLines(builder);
@@ -198,7 +212,7 @@ public abstract class AbstractAnalyzer {
   private CoverageBuilder analyze2(ExecutionDataStore executionDataStore) {
     CoverageBuilder coverageBuilder = new CoverageBuilder();
     Analyzer analyzer = new Analyzer(executionDataStore, coverageBuilder);
-    for (File binaryDir : fileSystem.binaryDirs()) {
+    File binaryDir = new File(fileSystem.baseDir(), BINARY_DIR);
       for (ExecutionData data : executionDataStore.getContents()) {
         String vmClassName = data.getName();
         String classFileName = vmClassName.replace('.', '/') + ".class";
@@ -209,10 +223,9 @@ public abstract class AbstractAnalyzer {
           } catch (Exception e) {
             JaCoCoUtils.LOG.warn("Exception during analysis of file " + classFile.getAbsolutePath(), e);
           }
-        }
-      }
-    }
-    return coverageBuilder;
+		}
+	  }
+	  return coverageBuilder;
   }
 
   private List<Integer> getCoveredLines(CoverageMeasuresBuilder builder) {
@@ -243,9 +256,9 @@ public abstract class AbstractAnalyzer {
   private CoverageBuilder analyze(ExecutionDataStore executionDataStore) {
     CoverageBuilder coverageBuilder = new CoverageBuilder();
     Analyzer analyzer = new Analyzer(executionDataStore, coverageBuilder);
-    for (File binaryDir : fileSystem.binaryDirs()) {
-      analyzeAll(analyzer, binaryDir);
-    }
+
+	  analyzeAll(analyzer, new File(fileSystem.baseDir(), BINARY_DIR));
+
     return coverageBuilder;
   }
 
