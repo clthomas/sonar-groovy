@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.SortedSet;
 
 import com.google.common.collect.ImmutableList;
 
@@ -38,6 +39,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.sonar.api.batch.Sensor;
 import org.sonar.api.batch.SensorContext;
+import org.sonar.api.batch.fs.FilePredicate;
+import org.sonar.api.batch.fs.FileSystem;
+import org.sonar.api.batch.fs.InputFile;
 import org.sonar.api.config.Settings;
 import org.sonar.api.profiles.RulesProfile;
 import org.sonar.api.resources.Project;
@@ -46,30 +50,29 @@ import org.sonar.api.rules.Rule;
 import org.sonar.api.rules.RuleFinder;
 import org.sonar.api.rules.RuleQuery;
 import org.sonar.api.rules.Violation;
-import org.sonar.api.scan.filesystem.ModuleFileSystem;
 import org.sonar.api.utils.SonarException;
 import org.sonar.plugins.groovy.GroovyPlugin;
 import org.sonar.plugins.groovy.codenarc.CodeNarcXMLParser.CodeNarcViolation;
-import org.sonar.plugins.groovy.foundation.Groovy;
 
 public class CodeNarcSensor implements Sensor {
 
   private static final Logger LOG = LoggerFactory.getLogger(CodeNarcSensor.class);
 
   private final Settings settings;
-  private final ModuleFileSystem moduleFileSystem;
+  private final FileSystem fileSystem;
   private final RulesProfile rulesProfile;
   private final RuleFinder ruleFinder;
 
-  public CodeNarcSensor(Settings settings, ModuleFileSystem moduleFileSystem, RulesProfile profile, RuleFinder ruleFinder) {
+  public CodeNarcSensor(Settings settings, FileSystem fileSystem, RulesProfile profile, RuleFinder ruleFinder) {
     this.settings = settings;
-    this.moduleFileSystem = moduleFileSystem;
+    this.fileSystem = fileSystem;
     this.rulesProfile = profile;
     this.ruleFinder = ruleFinder;
   }
 
   public boolean shouldExecuteOnProject(Project project) {
-    return Groovy.isEnabled(moduleFileSystem)
+	  final SortedSet<String> languages = fileSystem.languages();
+	  return languages.contains("grvy")
         && !rulesProfile.getActiveRulesByRepository(CodeNarcRuleRepository.REPOSITORY_KEY).isEmpty();
   }
 
@@ -80,7 +83,7 @@ public class CodeNarcSensor implements Sensor {
       // Yes
       File report =  new File(codeNarcReportPath);
       if(!report.isAbsolute()){
-        report = new File(moduleFileSystem.baseDir(), codeNarcReportPath);
+        report = new File(fileSystem.baseDir(), codeNarcReportPath);
       }
       if (report == null || !report.isFile()) {
         LOG.warn("Groovy report " + GroovyPlugin.CODENARC_REPORT_PATH + " not found at {}", report);
@@ -103,29 +106,53 @@ public class CodeNarcSensor implements Sensor {
             .withConfigKey(violation.getRuleName());
         Rule rule = ruleFinder.find(ruleQuery);
         if (rule != null) {
-          Resource sonarFile = org.sonar.api.resources.File.create(violation.getFilename());
-          context.saveViolation(Violation.create(rule, sonarFile).setLineId(violation.getLine()).setMessage(violation.getMessage()));
-        } else {
-          LOG.warn("No such rule in Sonar, so violation from CodeNarc will be ignored: ", violation.getRuleName());
-        }
-      }
-    }
+			Resource sonarFile = getResource(violation);
+
+			//Resource sonarFile = org.sonar.api.resources.File.create(relativePath);
+			context.saveViolation(Violation.create(rule, sonarFile).setLineId(violation.getLine()).setMessage(violation.getMessage()));
+		} else {
+			LOG.warn("No such rule in Sonar, so violation from CodeNarc will be ignored: ", violation.getRuleName());
+		}
+	  }
+	}
   }
 
-  /**
+	private Resource getResource(final CodeNarcViolation violation)
+	{
+		InputFile inputFile = null;
+		inputFile = fileSystem.inputFile(new FilePredicate()
+		{
+			public boolean apply(final InputFile inputFile)
+			{
+				String fileName = inputFile.file().getName();
+				//System.out.println(fileName + "   " + violation.getFilename());
+				return violation.getFilename().contains(fileName);
+			}
+		});
+		if (inputFile != null)
+		{
+			return org.sonar.api.resources.File.create(inputFile.relativePath());
+		}
+		else
+		{
+			return org.sonar.api.resources.File.create(violation.getFilename());
+		}
+	}
+
+	/**
    * @return list of files with generated reports
    */
   private List<File> executeCodeNarc() {
     LOG.info("Executing CodeNarc");
 
-    File workdir = new File(moduleFileSystem.workingDir(), "/codenarc/");
+    File workdir = new File(fileSystem.workDir(), "/codenarc/");
     prepareWorkDir(workdir);
 
     File codeNarcConfiguration = new File(workdir, "profile.xml");
     exportCodeNarcConfiguration(codeNarcConfiguration);
     ImmutableList.Builder<File> result = ImmutableList.builder();
     int i = 1;
-    for (File sourceDir : moduleFileSystem.sourceDirs()) {
+	  File sourceDir = new File(fileSystem.baseDir(), "src");
       CodeNarcRunner runner = new CodeNarcRunner();
       FilesystemSourceAnalyzer analyzer = new FilesystemSourceAnalyzer();
 
@@ -146,8 +173,8 @@ public class CodeNarcSensor implements Sensor {
       // TODO : might be possible to process results object to get violations
       runner.execute();
       result.add(reportFile);
-      i++;
-    }
+      //i++;
+
     return result.build();
   }
 
